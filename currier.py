@@ -1,478 +1,564 @@
 # %% [markdown]
-# # Decorador para Currying em Python
+# # Decorator for Currying in Python
 #
-# Neste texto vamos pensar em como podemos construir um decorador que transforme
-# funções usuais em funções curried.
 #
-# Currying é o processo de converter funções de múltiplos parâmetros em
-# múltiplas funções de um único parâmetro.
-# Suponha que temos uma função `f` que recebe 3 parâmetros.
-# Como toda função em Python, aplicações dessa função são da forma `f(x, y, z)`,
-# ou seja, requerem que 3 argumentos devam ser passados de uma vez só, através 
-# de uma tupla que então retorna um único valor (eventualmente `None`,
-# eventualmente uma tupla de valores).
-# Uma versão curried da `f` permitirá que esses parâmetros sejam passados separadamente.
-# Algo como `f(x)(y)(z)`.
-# Funções podem ser chamadas dessa forma em Python, como veremos adiante.
-# Mas existem condições que precisam ser estabelecidas para que funções
-# funcionem dessa forma.
-# Fica mais fácil de visualizar o que acontece se atribuirmos nomes aos passos
-# intermediários.
+# In this text we are going to think about how to write decorators that are able
+# to curry functions.
+#
+# Currying is the process of converting a multiple argument function into
+# multiple single argument functions.
+# Supose we have a 3 argument function function `f`.
+# Such a function, in Python, is applyed like so: `f(x, y, z)`,
+# with all of the 3 arguments being bundled (as a tuple) and passed to `f` simultaneously.
+# The function then returns precisely 1 value (even if the value is `None` or a tuple of values)
+# A curried version of `f` allows for each of the 3 arguments to be passed separetely
+# Something like `f(x)(y)(z)` (Or `f(x)(y)` waiting for z).
+# This behaviour exists in Python, even if it's uncommon.
+# But there are conditions for functions to be able to act like that.
+# Let's visualize this by splitting things up and naming the steps.
 # ```python
 # f_x = f(x)
 # f_x_y = f_x(y)
-# 
+#
 # assert f(x)(y)(z) == f_x_y(z)
 # ```
-# A função `f` não foi definida no exemplo acima.
-# Portanto, o "código" não pode ser rodado da forma que está.
-# Então a questão a resolver aqui será: como definir uma tal `f`?
+# %% [markdown]
+# Function `f` was kept undefined in the above example, and for good reason.
+# The above code would produce an error for usual Python functions.
+# The question is, what sort of unusual function `f` could be called like this?
 #
-# Para facilitar o raciocínio, vamos usar uma função `f` bem simples e tomá-la
-# como uma função que recebe 2 argumentos numéricos e retorna a soma deles.
-
+# To work with a concrete example, let's use a simple multiple argument function:
+# usual adition of 2 values.
 # %%
-def adicao_classica(x, y):
+def usual_add(x, y):
     return x + y
 
-assert adicao_classica(3, 5) == 3 + 5
+assert usual_add(3, 5) == 3 + 5
 
 # %% [markdown]
-# Agora queremos passar os argumentos `3` e  `5` um de cada vez.
-# Nós poderíamos simplesmente definir uma função `soma_3` como 
-#```python
-# def soma_3(y):
-#     return 3 + y
-#```
-# Mas não queremos apenas ser capazes de somar 3.
-# Queremos ser capazes de passar qualquer valor a ser somado.
-# Ou seja, queremos fazer uma função `soma_x`.
-# Além disso, já temos uma função que faz a soma.
-# Queremos apenas adicionar a funcionalidade de passar um argumento por vez para
-# nossa função.
-# Então vamos seguir o princípio de não nos repetirmos (DRY) e aproveitarmos a
-# função existente.
-#
-# Bom, já entendemos que `soma_x` deve ser uma função.
-# Além disso, vemos que `soma_x` deve ser parametrizável, ou seja, precisamos
-# de uma função que receba a primeira parcela da soma (que estamos chamando de `x`)
-# e retorne a função `soma_x`.
-# Esse padrão tem o nome de fechamento (em inglês o termo é closure).
-#
-# Python nos permite definir funções dentro de outras funções.
-# Também nos permite retornar essas funções.
-# Dessa forma, podemos produzir nosso somador curried da seguinte forma:
+# So, we wannt to pass the arguments `3` and `5`, one at a time.
+# Notice, first, we can define a function that adds 3 to whatever value we pass:
 # %%
-def construtor_de_adicao(x):
-
-    def somador_parcial(y):           # soma_x sendo definido internamente
-        return adicao_classica(x, y)  # observe que somador_parcial "lembra" o valor
-                                      # de x mesmo x não sendo parâmetro de somador_parcial
-
-    return somador_parcial            # valor de retorno de construtor_de_adicao é uma função
-
-soma_3 = construtor_de_adicao(3)      # Invocamos construtor_de_adicao com valor 3 para que
-                                      # somador_parcial passe esse 3 adiante quando invocar
-                                      # adicao_classica
-
-assert soma_3(5) == 3 + 5
-
+def add_3(y):
+    return 3 + y
 # %% [markdown]
-# Funciona!
+# But we don't want to be able to only add the value 3 to any other, we want
+# it to be an argument.
+# What we want to do here is find a way of building `add_x` functions, where
+# x is an argument that can be passed.
 #
-# Mas ainda não estamos fazendo exatamente o que nos propusemos a fazer.
-# No código acima produzimos uma função intermediária que fixa o valor da 1ª parcela.
-# Queremos conseguir pular esse passo intermediário se desejarmos.
+# This pattern of receiving a value and returning a fuction is known as closure.
+# And it is a feature of the Python languge (among many many others).
 #
-# Ao observar com cuidado o que acabamos de fazer, podemos ver que já temos o
-# que precisamos para termos o comportamento desejado.
-# Pois `soma_3 == construtor_de_adicao(3)` e `soma_3(5) == 8`
-# Portanto, `construtor_de_adicao(3)(5)` deve resultar em `8`.
-
+# In Python, we are allowed to define funnctions inside another function's body.
+# We can also pass functions around as arguments, or return them.
+# This is sufficient for our addition example.
 # %%
-soma_curried = construtor_de_adicao
+def add_constructor(x):
 
-assert soma_curried(3)(5) == 3 + 5
+    def add_x(y):               # add_x being definned internally
+        return usual_add(x, y)  # notice add_x "remembers" the passed x value
+                                # despite not having itself an x argument
+    return add_x                # return value of add_constructor function
+                                # is the add_x function
+
+add_3 = add_constructor(3)      # We can now define add_3 function, by calling 
+                                # add_constructor with the value 3
+                                # add_3 will then be the returned add_x function
+                                # wich "remembers" the value 3 to pass to usual_add
+
+assert add_3(5) == 3 + 5
 
 # %% [markdown]
-# Legal! Vamos tentar abstrair o padrão e generalizar a solução em um decorador.
+# Works!
 #
-# Então vamos antes dar uma olhadinha em decoradores.
+# But we still haven't reached are goal.
+# In the code above, we made a intermediate function to fix the value for
+# the first argument
+# We want to be able to acomplish both steps at once
 #
-# ## Decoradores
+# If, however, we observe carefully what was done, we can see all the work has
+# been done already.
+# If `add_3 == add_constructor(3)` and `add_3(5) == 8`, we expect for
+# `add_constructor(3)(5)` to result in  `8`.
+# %%
+curried_add = add_constructor
+
+assert curried_add(3)(5) == 3 + 5
+
+# %% [markdown]
+# Cool! Now, let's try to abstract this pattern into a decorator.
 #
-# Em Python, decorador é um açúcar sintático para um padrão específico de fechamento.
-# O seguinte padrão:
+# For this, is better to briefly discuss what decorators are and how they are defined
+#
+# ## Decorators
+#
+# Decorator is a (Python specific) sintatic sugar for a particular kind of closure.
+# The following one:
 #
 # ```python
-# def decorador(funcao_a_decorar):
+# def decorator(func_to_decorate):
 #
-#   def nova_funcao_decorada(*args):
-#       ... # funcao_a_decorar é aplicada aqui dentro
+#   def new_decorated_func(*args):
+#       ... # func_to_decorate is (usually) applied here somehow
 #
-#   return nova_funcao_decorada
+#   return new_decorated_func
 #
-# funcao_a_decorar = decorador(funcao_a_decorar)
+# def my_func(*args):
+#     ...
+#
+# my_func = decorator(my_func)
 # ```
-# Decoradores são fechamentos para funções.
-# Em particular, são fechamentos que recebem uma função como entrada e retornam
-# uma outra função como saída.
-# Além disso, o decorador realiza a substituição da função original pela função
-# decorada no namespace.
-# Com o açúcar sintático já na definição da `funcao_a_decorar` fica da seguinte forma:
+# Decorators are closures for functions.
+# In particular, decoratos have a function for its paremeter,
+# and they return a function.
+# Also, the decorator sintax includes a step where the original function is
+# replace by the one returned by the decorator.
+# With the sintactic sugar, the definition given above would be:
 # ```python
-# @decorador
-# def funcao_a_decorar(*args):
-#   ...
+# @decorator
+# def my_func(*args):
+#     ...
 # ```
 #
-# O importante de observar aqui é que nosso `soma_curried` é definido a partir de
-# `construtor_de_adicao` que espera receber um parâmetro numérico e não uma função.
-# Portanto não podemos utilizá-la como decorador da maneira como foi definida.
+# The key insight here is that `curried_add` is defined exactly like `add_constructor`,
+# even conceptually.
+# Both expect a single value, to return a function which expects another value.
+# This means we are not yet in decorator land, since we need a function as an argument.
 #
-# Então, voltando ao nosso exemplo com `adicao_classica`, buscamos uma
-# maneira de tornar a própria função `adicao_classica` como parâmetro.
+# So, going back to our `usual_add` example, we need to find a way to, with a function,
+# alter the behaviour of the `usual_add` function itself.
+# instead of receiving 2 values and returning 1 value we want it to recieve 1 value
+# and return a function (that will then take the other value and return the final result)
 #
-# Pensando bem, utilizamos `adicao_classica` dentro do fechamento.
-# Faz até mais sentido passar a função como parâmetro, pois aí podemos generalizar
-# o processo e passar outras funções para nosso pretenso decorador.
-# Seguindo o padrão dos decoradores, faz sentido, então, colocar todo aquele
-# código do `construtor_de_adicao` dentro de uma nova função que recebe a função
-# a ser invocada lá no final do processo.
-
+# In defining `curried_add`, we did use `usual_add` inside the closure.
+# So, if `usual_add` was a function argument, we could apply it programatically.
+# In fact, we could pass in any function we want, and the currying behaviour should persist.
+#
+# To do this, we have to wrap what we already done into yet another layer of function creation.
 #%%
-def curry_em_2_passos(funcao_sem_curry):
+def two_step_curry(uncurried_func):
 
-    def recebe_primeiro_parametro(x):
+    def gets_fst_arg(x):
 
-        def recebe_segundo_parametro(y):
-            # Tendo ambos os parâmetros, aplica a função original e retorna
-            return funcao_sem_curry(x, y)
+        def gets_snd_arg(y):
+            # Knowing both arguments, we can apply uncurried_func
+            return uncurried_func(x, y)
 
-        return recebe_segundo_parametro
+        return gets_snd_arg
 
-    return recebe_primeiro_parametro
+    return gets_fst_arg
 
-@curry_em_2_passos
-def soma_2_parcelas(x, y):
+@two_step_curry
+def two_step_add(x, y):
     return x + y
 
-assert soma_2_parcelas(3)(5) == 3 + 5
+assert two_step_add(3)(5) == 3 + 5
 
 
 #%% [markdown]
 #
-# Pelos nomes utilizados, pode ter ficado claro que temos limitações na solução
-# apresentada acima.
+# Probably obvious by the names of the functions involved but...
+# there are some limitations in the solution we just found.
 #
-# Vamos lidar com a mais simples primeiro...
+# Let's deal with the simpler first
 #
-# Observe que foi definida uma função para receber cada parâmetro, o que faz
-# muito sentido já que era o comportamento pretendido.
-# Porém, isso limita a implementação para realizar currying apenas de funções
-# com exatamente 2 parâmetros.
-# Podemos mudar um pouco nossa implementação e fazer um decorador que realiza o
-# currying somente do primeiro parâmetro, independentemente de quantos outros
-# parâmetros a função original tenha.
-# Para isso precisaremos utilizar o padrão `*args`.
+# `two_step_curry` defined a function that takes a single argument,
+# aptly named `get_fst_arg`.
+# However, the function it returns recieves a single argument and then
+# has to return a value.
+# This means we can only apply the solution to functions of 2 arguments, exactly.
 #
-# Já utilizamos `*args` no exemplo de decorador, mas sem dar maiores explicações.
-# O operador `*` desempacota intancias de objetos que listam valores.
-# Normalmente isso implica que tratamos de listas ou tuplas.
-# E no caso da utilização em definições de funções, serão sempre tuplas.
-# Como curiosidade, também existe o operador `**`, que lida com objetos como dicionários.
-# `**kwargs` é bastante usado para os casos em que funções possuem argumentos nomeados
-# (keyword arguments), mas ignoraremos ele aqui para facilitar a leitura dos códigos.
+# We can lightly adjust our implementation to produce a decorator to partially
+# apply the first argument only, returning a function that takes a paremeter
+# and returns a function with one less argument, however many.
+# To acomplish this, we're going to use the unpacking operator `*`.
 #
-# Voltando ao currying...
-# Ao adicionarmos `*args` à definição de nossa função mais interna, poderemos
-# fazer o currying de funções com mais parâmetros do que apenas 2, uma vez que
-# o `*args` desempacotará todos os argumentos remanescentes, independente de
-# quantos sejam.
+# We've used `*args` before, in the decorator example, without more explanation.
+# For a superficial explanation, the `*` operator unpacks iterable objects.
+# Usually this means lists or tuples.
+# In the case of function arguments, they will be tuples.
+# Dicts (and map-like objects) have `**`. We won't go trough it in detail, but
+# they are also used in these contexts.
+# `**kwargs` is used to unpack keyword arguments in functions, for instance.
+# We will refrain from using `**kwargs` here, so that the code reads easier.
+#
+# Back to currying...
+# By adding a `*args` to the innermost function, we can abstract the number of arguments.
+# This will make the original function take all remaining arguments, however many.
 
 #%%
-def currying_do_1o_arg(funcao_sem_curry):
+def fst_arg_curry(uncurried_func):
 
-    def recebe_primeiro_parametro(x):
+    def get_fst_arg(x):
 
-        def recebe_todos_outros_parametros(*args):
-            # Aplica função original e retorna
-            return funcao_sem_curry(x, *args)
+        def get_other_args(*args):
+            # Apply uncurried_func and returns
+            return uncurried_func(x, *args)
 
-        return recebe_todos_outros_parametros
+        return get_other_args
 
-    return recebe_primeiro_parametro
+    return get_fst_arg
 
-@currying_do_1o_arg
-def soma_3_parcelas(x, y, z):
+@fst_arg_curry
+def add_3_values(x, y, z):
     return x + y + z
 
-assert soma_3_parcelas(3)(5, 7) == 3 + 5 + 7
+assert add_3_values(3)(5, 7) == 3 + 5 + 7
 
 #%% [markdown]
 #
-# Não foi por acidente que passamos os últimos 2 argumentos de uma única vez.
-# Vamos ver o que acontece se tentarmos chamar `soma_3_parcelas` como se ela
-# tivesse sido curried até o fim.
+# Passing last 2 arguments at once was no accident.
+# Let's see what happens if we try to use it as fully curried.
 
 #%%
 try:
-    soma_3_parcelas(3)(5)(7)
+    add_3_values(3)(5)(7)
 except TypeError as t:
-    assert str(t) == "soma_3_parcelas() missing 1 required positional argument: 'z'"
+    assert str(t) == "add_3_values() missing 1 required positional argument: 'z'"
 
 #%% [markdown]
-# Como podemos observar, nesse caso temos um `TypeError` que nos informa termos
-# deixado de passar 1 argumento posicional obrigatório para a função
-# `soma_3_parcelas()`.
-# Em particular, deixamos de passar o último, que chamamos de 'z'.
+# We get a `TypeError` informing us about not providing an argument.
+# In particular, we missed passing `z`.
 #
-# Isso significa que `currying_do_1o_arg` faz juz ao próprio nome é só realiza
-# o processo de currying até o primeiro argumento.
-# Pra explicitar o ocorrido, `soma_3_parcelas` é uma função que recebe um único
-# argumento e retorna uma função que recebe 2 argumentos.
-# Dessa forma, quando tentamos invocar essa segunda função apenas com o argumento
-# `5` para o parâmetro `y`, temos que o parâmetro `z` fica sem argumento.
+# This indicates `fst_arg_curry` is indeed a good name.
+# Let's understand what happened.
+# By following what the decorator does, we can see that `add_3_values` was
+# replace by a `get_fst_arg` function.
+# We can actually read this from a `TypeError` message if we pass no arguments to it
+# %%
+try:
+    add_3_values()
+except TypeError as t:
+    assert str(t) == "get_fst_arg() missing 1 required positional argument: 'x'"
+# %% [markdown]
+# So, when we call `add_3_values(3)` we are getting back the function returned by
+# `get_fst_arg`, which is `get_other_args`.
+# Since `get_other_args` is uncurried, `y` and `z` are its arguments.
+# If we give only 5 for `y`, `z` is still missing.
 #
-# Essa também é a razão para não ser possível reaplicarmos o decorador repetidas
-# vezes para obter o currying completo.
+# And, this is also why we can't just reaply our decorator to get the fully
+# curried version.
 
 #%%
-@currying_do_1o_arg
-@currying_do_1o_arg
-def soma_3_parcelas_nova_tantativa(x, y, z):
+@fst_arg_curry
+@fst_arg_curry
+def add_3_values_reapply_curry(x, y, z):
     return x + y + z
 
 try:
-    soma_3_parcelas_nova_tantativa(3)(5)(7)
+    add_3_values_reapply_curry(3)(5)(7)
 except TypeError as t:
-    assert str(t) == "recebe_primeiro_parametro() takes 1 positional argument but 2 were given"
+    assert str(t) == "get_fst_arg() takes 1 positional argument but 2 were given"
 
 #%% [markdown]
 #
-# Porém, conseguimos continuar reaplicando o decorador se formos realizando as
-# aplicações parciais dos parâmetros que já foram curried.
-
+# We can, however, keep reapplying `fst_arg_curry` if we also keep applying
+# some value to the results.
 #%%
-@currying_do_1o_arg
-def soma_3_parcelas_versao_estranha(x, y, z):
+@fst_arg_curry
+def add_3_values_strangely(x, y, z):
     return x + y + z
 
-inclui_3_na_soma = soma_3_parcelas_versao_estranha(3)
-inclui_3_na_soma = currying_do_1o_arg(inclui_3_na_soma)
+puts_3_to_sum = add_3_values_strangely(3)
+puts_3_to_sum = fst_arg_curry(puts_3_to_sum)
 
-assert inclui_3_na_soma(5)(7) == 3 + 5 + 7
+assert puts_3_to_sum(5)(7) == 3 + 5 + 7
 
 #%% [markdown]
 #
-# O código acima é confuso.
-# Tome um tempo para apreciá-lo com calma.
-# Talvez suba um console Python e cutuque um pouco a função
-# `soma_3_parcelas_versao_estranha`.
-# Talvez até mesmo aproveite pra fazer um café ou um chá.
+# That code is strange. Confusing, even
+# Take your time with it.
+# Perhaps, fire up a Python console or something, and poke at it a little.
+# Or maybe make some tea or a coffe.
 #
-# Ok. Vamos lembrar o que o `@currying_do_1o_arg` faz.
-# Para facilitar um pouco, vamos remover as funções mais internas que, nesse
-# momento, são apenas ruído.
+# Ok. Let's remind ourselves what `@fst_arg_curry` does.
+# To meake it easier to understand, let's cut out the innermost functions.
+# At this moment they are mostly noise.
 #
 # ```python
-# def currying_do_1o_arg(funcao_sem_curry):
+# def fst_arg_curry(uncurried_func):
 # 
-#   def recebe_primeiro_parametro(x):
+#   def get_fst_arg(x):
 #     ...
 #   
-#   return recebe_primeiro_parametro
+#   return get_fst_arg
 # ```
 #
-# Observe que, depois de aplicar o decorador em qualquer função ela se torna uma
-# função de um parâmetro só.
-# Não faz nenhum faz sentido fazer currying de uma função que já é de parâmetro
-# único.
+# After applying the decorator once, we have ourselves a 1 argument function
+# It makes no sense to curry it since it it already curried.
+# The function it returns is the one that still isn't curried.
 #
-# Ok, ok. E o que é que podemos aprender com esse fracasso em particular?
-# Bom, uma maneira de ler a situação é que, ao alterar fundamentalmente a assinatura
-# de parâmetros da função, nos impedimos de recair num caso em que o decorador
-# de currying que fizemos pudesse ser reaplicado.
+# Ok, ok. So what do we learn from this particular failure?
+# Well, one way to interpret what happened is that, by fundamentally
+# altering the function signature, we prevent ourselves from recurring
+# to the same problem, and can't then reuse the same solution.
 #
-# Então vamos tentar pensar em uma solução que preserve a assinatura da função
-# mesmo depois de aplicar o decorador.
+# Let's, then, look for a solution that preserves our function signature enough
+# for us to reapply our solution.
+# We need a decorator that, given a function produces an uncurried function, but
+# when given all parameters, produces a single argument function.
+# Something like `add_3(x, y, z) -> add_2_then_1(x, y)(z)`
+# That way, if we keep reapplying our solution, we keep falling into the same
+# situation as before, except with one argument less.
+# Like `add_2_then_1(x, y) -> add_1_at_a_time(x)(y)` being a 1 argument function
 #
-# Quando aplicamos o decorador uma vez, chegamos num ponto em que a função
-# pode ser chamada como `soma(x)(y, z)` mas aí o problema é que `soma` recebe
-# parâmetro único, então não dá pra reaplicar a solução.
-# Então, talvez seja interessante tentar produzir um decorador que, ao ser
-# aplicado uma vez retorne uma função que possa ser chamada por `soma(x, y)(z)`.
-# Sendo possível fazer o currying do último parâmetro, produziríamos uma função
-# com ainda múltiplos parâmetros a serem curried, de forma que poderíamos
-# reaplicar a solução até sobrar apenas 1 parâmetro.
-#
-# Sem começarmos do caso geral, vamos ver se conseguimos fazer isso diretamente
-# com a função soma.
+# Let's try our luck with addition function first.
 
 #%%
-def soma_3_parcelas_com_z_curried(x, y):
+def add_3_values_curried_last(x, y):
 
-    def recebe_z_e_soma(z):
+    def get_last_and_add_all(z):
         return x + y + z
 
-    return recebe_z_e_soma
+    return get_last_and_add_all
 
-assert soma_3_parcelas_com_z_curried(3, 5)(7) == 3 + 5 + 7
-
-#%% [markdown]
-#
-# Parece promissor
-# `soma_3_parcelas_com_z_curried` é uma função de 2 parâmetros, então deve ser
-# possível fazer currying com ela.
-#
-# Vamos testar.
-
-#%%
-soma_3_curried = currying_do_1o_arg(soma_3_parcelas_com_z_curried)
-
-assert soma_3_curried(3)(5)(7) == 3 + 5 + 7
+assert add_3_values_curried_last(3, 5)(7) == 3 + 5 + 7
 
 #%% [markdown]
 #
-# Aí sim! Vamos ver se conseguimos generalizar isso em um decorador.
+# Looks promising.
+# `add_3_values_curried_last` is a 2 argument function, so it makes sense
+# to curry it.
+#
+# Let's try:
 
 #%%
-def curry_ultimo(func):
+add_3_curried = fst_arg_curry(add_3_values_curried_last)
 
-    def func_sem_ultimo(*args):
+assert add_3_curried(3)(5)(7) == 3 + 5 + 7
 
-        def recebe_ultimo(arg):
+#%% [markdown]
+#
+# Now we're cooking with fire!
+# For our next trick, abtracting this into a decorator...
+#%%
+def curry_last(func):
+
+    def func_with_last_applied(*args):
+
+        def get_last_arg(arg):
             return func(*args, arg)
 
-        return recebe_ultimo
+        return get_last_arg
 
-    return func_sem_ultimo
+    return func_with_last_applied
 
-@curry_ultimo
-def soma_2_parcelas_com_3a(x, y, z):
+@curry_last
+def add_2_values_then_a_3rd(x, y, z):
     return x + y + z
 
-assert soma_2_parcelas_com_3a(3, 5)(7) == 3 + 5 + 7
+assert add_2_values_then_a_3rd(3, 5)(7) == 3 + 5 + 7
 
 #%% [markdown]
+# Now we have a partially curried function, but one that still takes in 2
+# arguments and can, therefore, be curried.
 #
-# Agora temos uma função parcialmente curried, mas que ainda pode ser curried
-# nos argumentos que faltam.
-#
-# Nós poderíamos agora aplicar o decorador `currying_do_1o_arg` pra terminar o
-# currying da função.
-# Se bem que, nesse caso em que temos apenas 2 parâmetros, que diferença faz
-# fazer currying do 1º ou do 2º parâmetro?
-# A solução nova pareceu funcionar bem, por quê não aplicá-la novamente?
+# We could apply `fst_arg_curry` and be done with currying the `add_3` function.
+# But, as we've been pointing to, we can also reapply `curry_last`.
+# In this 3 argument example, at this point it makes no difference which one we apply.
+# But using only one currying function makes it easier to read, so...
 
 #%%
-@curry_ultimo
-@curry_ultimo
-def soma_3_curried_nova(x, y, z):
+@curry_last
+@curry_last
+def add_3_curried(x, y, z):
     return x + y + z
 
-assert soma_3_curried_nova(3)(5)(7) == 3 + 5 + 7
+assert add_3_curried(3)(5)(7) == 3 + 5 + 7
 
 #%% [markdown]
+# There is still some more generalization to be done here.
+# The way it is, we need to apply `curry_last` several times
+# One less then the number of arguments, actually.
+# We don't like to repeat ourselves that much.
 #
-# Temos um pouquinho mais de generalização a fazer.
-# Do jeito que está, precisamos aplicar o decorador `curry_ultimo` tantas vezes
-# quantos parâmetros tenhamos na função, além de 1.
-#
-# Precisamos de uma maneira de fazer tantas reaplicações quanto necessárias.
-# Depois de tudo que já fizemos, esse passo não é tão complicado.
+# It's better to find a way to programatically specify how many times to apply
+# our `curry_last` decorator.
+# After all the complication we've been trough, this one is a bit easier.
 
 #%%
 def curry_n_args(n, func):
 
     for _ in range(n-1):
-        func = curry_ultimo(func)
+        func = curry_last(func)
 
     return func
 
-def soma_3_parcelas_n_args(x, y, z):
+def add_3_using_n_args(x, y, z):
     return x + y + z
 
-soma_3_parcelas_n_args = curry_n_args(3, soma_3_parcelas_n_args)
+add_3_using_n_args = curry_n_args(3, add_3_using_n_args)
 
-assert soma_3_parcelas_n_args(3)(5)(7) == 3 + 5 + 7
+assert add_3_using_n_args(3)(5)(7) == 3 + 5 + 7
 
 #%% [markdown]
+# Ok, it works, but we sort of ruined the docorator.
+# At least in the fact we can't use the `@` sintax any more.
+# The thing preventing us from using it is that decorators are required
+# to be single argument functions.
+# ALso, the argument must be, itself, a function.
+# But it looks like we need a decorator which can take other arguments.
+# How can this possibly be?
+# We've just sen decorators must be single argument functions!
 #
-# Ok, funciona, mas estragamos o decorador.
-# Parece que precisamos de um decorador para o qual possamos passar parâmetros.
-# Como isso pode ser possível se os decoradores são feitos para receber
-# unicamente uma função?
-#
-# Bem, caro leitor, é agora que a coisa fica interessante.
-# Queremos definir uma função de 2 parâmetros que tem um inteiro como primeiro
-# parâmetro e uma função como segundo.
-# E com isso queremos criar uma função que se lembre do parâmetro inteiro mas
-# que possui apenas um parâmetro, que no caso é uma função.
-# Então, o que precisamos é precisamente fazer uma versão **curried** de nosso
-# "decorador" `curry_n_args`!
-
-
+# Well, this is where things become truly interesting!
+# We want a multiple argument function, but we also want to be able to
+# pass in all of its arguments, except for the last one and.. that is it!
+# This is precisely what we are doing here the whole time.
+# What we need to do is curry the last argument of our multiple argument decorator.
 #%%
-curry = curry_ultimo(curry_n_args)
+curry = curry_last(curry_n_args)
 
 @curry(4)
-def soma_4_curried(x, y, z, w):
+def add_4_curried(x, y, z, w):
     return x + y + z + w
 
-assert soma_4_curried(1)(2)(3)(4) == 1 + 2 + 3 + 4
+assert add_4_curried(1)(2)(3)(4) == 1 + 2 + 3 + 4
 
 #%% [markdown]
+# That is pretty good.
+# But we can go back a step and find a different solution.
+# There is still a way to use `fst_arg_curry`.
 #
-# Já tá bom o suficiente pra mim.
-# No entanto, tem mais uma alteração interessante que pode ser feita aqui.
-# Podemos fazer um decorador que nem necessite receber o argumento para quantos
-# parâmetros aplicar o currying.
-# Com a implementação apresentada até agora, nós poderíamos cair na situação de
-# receber um `TypeError` se modificarmos um programa de maneira a remover um
-# parâmetro de uma função mas nos esqueçamos de ajustar o argumento passado ao
-# decorador.
+# The problem there was that we could not reaply the decorator to a single
+# argument function.
+# Well, more accurately, we couldn't reaply the decorator until
+# we passed it an argument.
+# There is room to work with that!
 #
-# Sem entrar em muito detalhes sobre como essa parte funciona, o módulo
-# **inspect** pode nos ajudar.
-# Esse módulo é capaz de extrair o número de parâmetros de uma função, de
-# maneira que conseguiremos descobrir essa informação sem precisar passá-la
-# explicitamente ao decorador.
+# Idea is for the decorator to return a 1 argument fuction, but one
+# with the capability to further curry arguments when an argument is passed to it.
 #
-# A seguir temos o `import` e uma definição de função que realiza o que precisamos.
+# %%
+def keep_currying_it(func):
 
+    def get_one_arg(arg):
+        get_one_arg_curried_func = fst_arg_curry(func)
+        applied_one_arg = get_one_arg_curried_func(arg)
+        # at this point apply_one_arg is a regular python function
+        # because of fst_arg_curry this one can receive any ammount of arguments
+        return keep_currying_it(applied_one_arg)
+
+    return get_one_arg
+
+@keep_currying_it
+def keep_adding(x,y,z,w):
+    return x+y+z+w
+
+assert keep_adding(1)(2)(3)(4) != 10
+assert keep_adding(1)(2)(3)(4)(5) != 10
+assert keep_adding(1)(2)(3)(4)(5) != 15
+
+# %% [markdown]
+# Ok, this time there was no `Exception` in sight. What gives?
+# The big problem there is that func is never applied.
+# So the original, unaltered `keep_adding` never gets called and can't
+# produce a result.
+# There is also the fact that `fst_arg_curry` returns a function with `*args`.
+# Because of it, we can never pass too many or too few arguments,
+# as long as we pass them one at a time
+#
+# But the import thing is, for now, that we are able to pass in arguments one
+# at a time.
+# We just need to find out how to apply `func`
+#
+# Let's start by following the code, line by line, in a small example.
+# %%
+def another_add(x,y,z):
+    return x+y+z
+
+get_one_arg_curried_func = fst_arg_curry(another_add)
+applied_1 = get_one_arg_curried_func(1)
+
+assert applied_1(2,3) == 1+2+3
+
+# %% [markdown]
+# Now, `applied_1` had its first argument curried just fine.
+# So far so good.
+# Let's keep going.
+# Notice that, thos time we are to apply our decorator to `applied_1`
+# %%
+get_one_arg_curried_func = fst_arg_curry(applied_1)
+applied_1_2 = get_one_arg_curried_func(2)
+
+assert applied_1_2(3) == 1+2+3
+# %% [markdown]
+# One more step...
+#%%
+get_one_arg_curried_func = fst_arg_curry(applied_1_2)
+applied_1_2_3 = get_one_arg_curried_func(3)
+
+assert applied_1_2_3() == 1+2+3
+
+# %% [markdown]
+# At this point, we applied every argument already.
+# But there is no base to that recursion.
+# There is nothing in that code forcing the evaluation
+# Nothing like `applied_1_2(3)` or `applied_1_2_3()` anywhere.
+#
+# The next step is to `keep_currying_it`.
+# From here on, we are no longer able to end the function call without a `TypeError`
+# informing the passing of more than 3 positional arguments.
+#
+# So, we need to check wether or not we have enough arguments to apply the function
+# There are good ways of doing it.
+# But we will do something else.
+# We are just going to try to apply the function.
+# If it returns a value it returns a value.
+# Otherwise, we apply the decoretor recursively.
+# %%
+def curry(func):
+
+    def get_one_arg(arg):
+        try:
+            return func(arg)
+        except TypeError:
+            applied_one_arg = fst_arg_curry(func)(arg)
+            return curry(applied_one_arg)
+
+    return get_one_arg
+
+@curry
+def add_4(x,y,z,w):
+    return x+y+z+w
+
+@curry
+def add_5(x,y,z,w,r):
+    return x+y+z+w+r
+
+assert add_4(1)(2)(3)(4) == 1+2+3+4
+assert add_5(1)(2)(3)(4)(5) == 1+2+3+4+5
+# %% [markdown]
+# We did it!
+# By putting that function call as the first step (the base of our recursion)
+# we made sure to apply the function at just the right time... well,
+# we kept trying when it wasn't time, but we were ready for it.
+#
+# It's interesting to note that we can only pass arguments oe at a time.
+# This is the case because what the decorator actually returns is a version of
+# `get_one_arg`, which is a single argument function.
+# And we aren't going to miss any TypeErrors given from the user side of things
+# because if an user tries to pass more than one value at a time, the `TypeError`
+# happens at the `get_one_arg`, not with the internal call of `func`.
+# %%
+try:
+    add_4(1)(2)(3,4)
+except TypeError as t:
+    assert str(t) == "get_one_arg() takes 1 positional argument but 2 were given"
+
+try:
+    add_4(1)(2)()
+except TypeError as t:
+    assert str(t) == "get_one_arg() missing 1 required positional argument: 'arg'"
+
+# %% [markdown]
+# We've come very far and made a very cool thing from scratch!
+# That said, the point of the exercise was to learn more about how Python
+# works.
+# In particular, how decorators work. How we can write decorators with arguments.
+#
+# If you do need to curry something for real, then don't use this code, use
+# the functools module.
 
 # %%
-from inspect import signature
-
-def numero_de_parametros(func):
-
-    sig = signature(func)
-    params = sig.parameters
-
-    return len(params)
-
-#%% [markdown]
-#
-# E aí podemos utilizar a `curry_ultimo` pra fazer o decorador.
-
-#%%
-def curry_tudo(func):
-
-    n = numero_de_parametros(func)
-
-    for _ in range(n - 1):
-        func = curry_ultimo(func)
-
-    return func
-
-@curry_tudo
-def soma_4_curried_tudo(x, y, z, w):
-    return x + y + z + w
-
-@curry_tudo
-def soma_5_curried_tudo(x, y, z, w, v):
-    return x + y + z + w + v
-
-assert soma_4_curried_tudo(1)(2)(3)(4) == 1 + 2 + 3 + 4
-assert soma_5_curried_tudo(1)(2)(3)(4)(5) == 1 + 2 + 3 + 4 + 5
